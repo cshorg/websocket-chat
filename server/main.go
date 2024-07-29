@@ -3,11 +3,16 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		allowedOrigin := "http://localhost:5173"
+		return strings.HasPrefix(r.Header.Get("Origin"), allowedOrigin)
+	},
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
