@@ -12,28 +12,38 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func main() {
-	http.HandleFunc("/echo", func(w http.ResponseWriter, r *http.Request) {
-		conn, _ := upgrader.Upgrade(w, r, nil)
+func echoHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Printf("Upgrade failed: %v\n", err)
+		return
+	}
+	defer conn.Close()
 
-		for {
-			msgType, msg, err := conn.ReadMessage()
-
-			if err != nil {
-				return
-			}
-
-			fmt.Printf("%s send: %s\n", conn.RemoteAddr(), string(msg))
-
-			if err = conn.WriteMessage(msgType, msg); err != nil {
-				return
-			}
+	for {
+		msgType, msg, err := conn.ReadMessage()
+		if err != nil {
+			fmt.Printf("ReadMessage failed: %v\n", err)
+			break
 		}
 
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, "index.html")
-		})
+		fmt.Printf("%s sent: %s\n", conn.RemoteAddr(), string(msg))
 
-		http.ListenAndServe(":8080", nil)
+		if err = conn.WriteMessage(msgType, msg); err != nil {
+			fmt.Printf("WriteMessage failed: %v\n", err)
+			break
+		}
+	}
+}
+
+func main() {
+	http.HandleFunc("/echo", echoHandler)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "index.html")
 	})
+
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		fmt.Printf("ListenAndServe failed: %v\n", err)
+	}
 }
