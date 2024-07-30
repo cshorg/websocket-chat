@@ -1,57 +1,59 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import Input from "./components/Input"
 import Chat from "./components/Chat"
 
 const App: React.FC = () => {
   const [input, setInput] = useState<string>("")
   const [messages, setMessages] = useState<string[]>([])
-  const socketRef = useRef<WebSocket | null>(null)
+  const [socket, setSocket] = useState<WebSocket | null>(null)
 
-  useEffect(() => {
-    socketRef.current = new WebSocket("ws://localhost:8080/echo")
+  const connectWebSocket = useCallback(() => {
+    const ws = new WebSocket("ws://localhost:8080/echo")
 
-    socketRef.current.onopen = () => {
-      console.log("WebSocket connected")
-      setMessages((prev) => [...prev, "status: connected"])
+    ws.onopen = () => {
+      setMessages((prev) => [...prev, "Status: Connected"])
     }
 
-    socketRef.current.onmessage = (event) => {
-      console.log("Server message:", event.data)
-      setMessages((prevMessages) => [...prevMessages, `Server: ${event.data}`])
+    ws.onmessage = (e) => {
+      setMessages((prev) => [...prev, `Server: ${e.data}`])
     }
 
-    socketRef.current.onerror = (error) => {
-      console.error("WebSocket Error:", error)
-      setMessages((prevMessages) => [...prevMessages, `Error: ${error}`])
+    ws.onclose = () => {
+      setMessages((prev) => [...prev, "Status: Disconnected"])
+      setTimeout(connectWebSocket, 5000)
     }
 
-    socketRef.current.onclose = () => {
-      console.log("WebSocket disconnected")
-      setMessages((prevMessages) => [...prevMessages, "Status: Disconnected"])
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error)
+      ws.close()
     }
 
-    return () => {
-      socketRef.current?.close()
-    }
+    setSocket(ws)
   }, [])
 
-  const sendMessage = () => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(input)
+  useEffect(() => {
+    connectWebSocket()
+    return () => {
+      if (socket) {
+        socket.close()
+      }
+    }
+  }, [connectWebSocket])
+
+  const send = useCallback(() => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(input)
       setInput("")
     } else {
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        "Error: WebSocket is not open."
-      ])
+      setMessages((prev) => [...prev, "Error: WebSocket is not connected"])
     }
-  }
+  }, [socket, input])
 
   return (
-    <main className="h-dvh w-full bg-zinc-950 flex items-center justify-center">
+    <main className="flex items-center justify-center w-full h-dvh bg-zinc-950">
       <section className="w-[300px]">
         <Chat messages={messages} />
-        <Input input={input} setInput={setInput} sendMessage={sendMessage} />
+        <Input input={input} setInput={setInput} sendMessage={send} />
       </section>
     </main>
   )
